@@ -1,18 +1,19 @@
 // Prisma schema for Polymer Clay Inspo
 //
-// Local dev uses SQLite. To move to Postgres (Vercel):
-//   1. change provider below to "postgresql"
-//   2. set DATABASE_URL to your Postgres connection string
-//   3. delete prisma/migrations/ and run `npx prisma migrate dev --name init`
-// See README.md for the full guide.
+// Postgres everywhere:
+//   - Local:      docker compose up -d db   (see docker-compose.yml + .env.example)
+//   - Production: Neon on Vercel injects DATABASE_URL (pooled) and
+//                 DATABASE_URL_UNPOOLED (direct, used for migrations).
+// See README.md for the full deploy guide.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model User {
@@ -28,8 +29,8 @@ model User {
 
 // ---- Content tables (seeded, read-only in the app) ----
 
-// difficulty is a plain string ("Easy" | "Medium" | "Hard"), validated in app code.
-// Prisma enums are not supported on SQLite, and strings keep the Postgres move clean.
+// difficulty is a plain string ("Easy" | "Medium" | "Hard"), validated in app code
+// (src/lib/difficulty.ts) rather than a DB enum.
 
 model Project {
   id         String @id @default(cuid())

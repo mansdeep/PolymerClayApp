@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Next.js 15 (App Router, TypeScript) app: a login-gated, searchable reference of polymer
 clay **projects**, **techniques**, and **finishing options**, each rated Easy/Medium/Hard.
-Built to run locally on **SQLite** and later deploy to **Vercel on Postgres** with only a
-Prisma datasource change (see the migration guide in `README.md`).
+Runs on **Postgres** everywhere — local via `docker compose up -d db`, production on
+**Neon + Vercel**. Deploy steps in `README.md`.
 
 ## Commands
 
@@ -16,26 +16,29 @@ Node is installed but **not on the tool-shell PATH**. Prefix commands:
 
 | Command | Purpose |
 |---|---|
+| `docker compose up -d db` | Local Postgres on `localhost:5432` (db `polymerclay`) |
 | `npm install` | Install deps (runs `prisma generate` via postinstall) |
 | `npm run dev` | Dev server on http://localhost:3000 |
-| `npm run build` | `prisma generate` + `next build` (also the Vercel build) |
+| `npm run build` | `prisma generate` + `prisma migrate deploy` + `prisma db seed` + `next build` — the exact Vercel build; needs a reachable DB |
 | `npm run db:migrate` | `prisma migrate dev` — create/apply a migration after editing `schema.prisma` |
 | `npm run db:seed` | Reload the 3 content tables (idempotent; `deleteMany` + `createMany`; never touches `User`) |
 | `npm run db:studio` | Prisma Studio |
 | `npx tsc --noEmit` | Typecheck |
+| `npx next build` | Compile only, skipping the DB steps in `npm run build` |
 
 There is no test suite and no separate lint step (`next build` type-checks and lints).
 
-Test user after seeding: `ada@example.com` / `claytime123` (created ad hoc during dev; not
-seeded — sign up if the DB is fresh).
+Because `npm run build` seeds on every run, deploys keep prod content in sync with
+`prisma/seed.ts`. `next build` alone is the offline compile check.
 
 ## Architecture
 
 **Data (`prisma/schema.prisma`, `src/lib/db.ts`)** — `User` plus three content models
 (`Project`, `Technique`, `Finish`). Each content model has a `difficulty` **String**
-(not a Prisma enum — enums are unsupported on SQLite and complicate the Postgres move);
-valid values live in `src/lib/difficulty.ts` (`DIFFICULTIES`, `isDifficulty`,
-`DIFFICULTY_STYLES`). `prisma` is a singleton to survive dev HMR.
+(not a Prisma enum, kept simple); valid values live in `src/lib/difficulty.ts`
+(`DIFFICULTIES`, `isDifficulty`, `DIFFICULTY_STYLES`). `prisma` is a singleton to survive
+dev HMR. The datasource uses `directUrl` (`DATABASE_URL_UNPOOLED`) so migrations run over a
+direct connection while the app uses the pooled `DATABASE_URL`.
 
 **Auth is deliberately split in two so middleware stays Edge-safe:**
 - `src/lib/session.ts` — JWT sign/verify (`jose`) + cookie name/options. No Prisma, no
@@ -62,8 +65,12 @@ is generic over `{ key, label, kind?, className? }`.
 **Layout** — `src/app/layout.tsx` is `async`, calls `getCurrentUser()`, and passes the
 user to `<NavBar>`. Tailwind with a custom `clay` color scale in `tailwind.config.ts`.
 
-## Moving to Postgres / Vercel
+## Deploy
 
-Change `datasource db { provider }` in `schema.prisma` to `postgresql`, delete
-`prisma/migrations/`, regenerate against the Postgres URL, set `DATABASE_URL` and a fresh
-`AUTH_SECRET` in Vercel. No application code changes. Full steps in `README.md`.
+GitHub remote is `origin` → `github.com/mansdeep/PolymerClayApp`, branch `main`. Vercel
+builds from `main`: it needs `DATABASE_URL` + `DATABASE_URL_UNPOOLED` (Neon integration in
+the Storage tab) and `AUTH_SECRET` (fresh, not the local value). The `build` script applies
+migrations and seeds. No code differs between local and prod. Full steps in `README.md`.
+
+Regenerating the init migration (no DB needed):
+`npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script`
