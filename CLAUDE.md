@@ -19,17 +19,18 @@ Node is installed but **not on the tool-shell PATH**. Prefix commands:
 | `docker compose up -d db` | Local Postgres on `localhost:5432` (db `polymerclay`) |
 | `npm install` | Install deps (runs `prisma generate` via postinstall) |
 | `npm run dev` | Dev server on http://localhost:3000 |
-| `npm run build` | `prisma generate` + `prisma migrate deploy` + `prisma db seed` + `next build` — the exact Vercel build; needs a reachable DB |
+| `npm run build` | `prisma generate` + `next build` — the exact Vercel build; no DB access |
 | `npm run db:migrate` | `prisma migrate dev` — create/apply a migration after editing `schema.prisma` |
+| `npm run db:deploy` | `prisma migrate deploy` + seed against `DATABASE_URL`; run manually against Neon after schema/seed changes |
 | `npm run db:seed` | Reload the 3 content tables (idempotent; `deleteMany` + `createMany`; never touches `User`) |
 | `npm run db:studio` | Prisma Studio |
 | `npx tsc --noEmit` | Typecheck |
-| `npx next build` | Compile only, skipping the DB steps in `npm run build` |
 
 There is no test suite and no separate lint step (`next build` type-checks and lints).
 
-Because `npm run build` seeds on every run, deploys keep prod content in sync with
-`prisma/seed.ts`. `next build` alone is the offline compile check.
+The Vercel build deliberately does **not** run migrations or seed — that was flaky against
+a cold Neon endpoint. Schema/seed changes are applied to prod by running `npm run db:deploy`
+with the Neon connection string in the environment.
 
 ## Architecture
 

@@ -36,9 +36,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | Command | Does |
 |---|---|
 | `npm run dev` | Start the dev server |
-| `npm run build` | `prisma generate` + `migrate deploy` + `db seed` + `next build` (this is what Vercel runs) |
+| `npm run build` | `prisma generate` + `next build` (this is what Vercel runs) |
 | `npm start` | Serve a production build |
-| `npm run db:migrate` | Create/apply a Prisma migration (`prisma migrate dev`) |
+| `npm run db:migrate` | Create/apply a Prisma migration locally (`prisma migrate dev`) |
+| `npm run db:deploy` | Apply migrations + seed against `DATABASE_URL` (run this against Neon after schema changes) |
 | `npm run db:seed` | Re-seed the content tables (idempotent; never touches users) |
 | `npm run db:studio` | Open Prisma Studio to inspect the DB |
 
@@ -80,9 +81,17 @@ src/
      `DATABASE_URL` → the pooled string, `DATABASE_URL_UNPOOLED` → the non-pooling string.
 3. **Add `AUTH_SECRET`** in **Settings → Environment Variables** — a fresh value from the
    command above (do not reuse the local one).
-4. **Deploy.** The `build` script runs `prisma migrate deploy` (creates tables) and
-   `prisma db seed` (loads the 3 content tables) automatically, then builds. Every push to
-   `main` redeploys.
+4. **Set up the schema once, from your machine.** The Vercel build does *not* touch the
+   database (fragile against a cold Neon endpoint). Grab Neon's **direct** connection
+   string (Storage tab → `.env.local` tab, or neon.tech → Connect → pooling off) and run:
+   ```bash
+   DATABASE_URL="postgresql://…neon.tech/neondb?sslmode=require" \
+   DATABASE_URL_UNPOOLED="postgresql://…neon.tech/neondb?sslmode=require" \
+   npm run db:deploy
+   ```
+   (Same direct string for both — this is a one-off admin run, not the serverless app.)
+5. **Deploy.** Every push to `main` redeploys. Re-run `npm run db:deploy` only when
+   `prisma/schema.prisma` or `prisma/seed.ts` changes.
 
 No application code changes are needed between local and production — only the database
 and `AUTH_SECRET` env vars differ.
